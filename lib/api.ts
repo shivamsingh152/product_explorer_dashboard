@@ -1,14 +1,17 @@
 import { Product, Category } from "@/types";
+import fallbackProducts from "./products-data.json";
+import fallbackCategories from "./categories-data.json";
 
 const BASE_URL = "https://fakestoreapi.com";
 
-async function fetchWithRetry(url: string, retries = 5, delay = 1000): Promise<Response> {
+async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, {
-        cache: 'no-store',
+        next: { revalidate: 3600 },
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json",
         },
       });
       if (res.ok) {
@@ -19,7 +22,7 @@ async function fetchWithRetry(url: string, retries = 5, delay = 1000): Promise<R
       console.warn(`Request to ${url} failed with error ${error}. Retrying (${i + 1}/${retries})...`);
     }
     if (i < retries - 1) {
-      // Exponential backoff: 1s, 2s, 3s, 4s...
+      // Exponential backoff: 1s, 2s, 3s...
       await new Promise((resolve) => setTimeout(resolve, delay * (i + 1)));
     }
   }
@@ -32,12 +35,12 @@ export async function getProducts(): Promise<Product[]> {
     const data = await res.json();
     if (!Array.isArray(data)) {
       console.error("API response for products is not an array:", data);
-      return [];
+      return fallbackProducts as Product[];
     }
     return data;
   } catch (error) {
-    console.error("Failed to fetch products:", error);
-    return []; // Return empty array to prevent build failure
+    console.error("Failed to fetch products, using fallback:", error);
+    return fallbackProducts as Product[];
   }
 }
 
@@ -46,8 +49,9 @@ export async function getProduct(id: string): Promise<Product | null> {
     const res = await fetchWithRetry(`${BASE_URL}/products/${id}`);
     return res.json();
   } catch (error) {
-    console.error(`Failed to fetch product ${id}:`, error);
-    return null;
+    console.error(`Failed to fetch product ${id}, using fallback:`, error);
+    const product = fallbackProducts.find((p) => p.id.toString() === id);
+    return (product as Product) || null;
   }
 }
 
@@ -57,12 +61,12 @@ export async function getCategories(): Promise<Category[]> {
     const data = await res.json();
     if (!Array.isArray(data)) {
       console.error("API response for categories is not an array:", data);
-      return [];
+      return fallbackCategories as Category[];
     }
     return data;
   } catch (error) {
-    console.error("Failed to fetch categories:", error);
-    return []; // Return empty array to prevent build failure
+    console.error("Failed to fetch categories, using fallback:", error);
+    return fallbackCategories as Category[];
   }
 }
 
@@ -72,11 +76,11 @@ export async function getProductsByCategory(category: string): Promise<Product[]
     const data = await res.json();
     if (!Array.isArray(data)) {
       console.error(`API response for category ${category} is not an array:`, data);
-      return [];
+      return (fallbackProducts as Product[]).filter((p) => p.category === category);
     }
     return data;
   } catch (error) {
-    console.error(`Failed to fetch products in category ${category}:`, error);
-    return []; // Return empty array to prevent build failure
+    console.error(`Failed to fetch products in category ${category}, using fallback:`, error);
+    return (fallbackProducts as Product[]).filter((p) => p.category === category);
   }
 }
